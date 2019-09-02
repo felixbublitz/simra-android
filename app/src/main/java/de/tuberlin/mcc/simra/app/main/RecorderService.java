@@ -28,6 +28,7 @@ import android.util.Log;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.overlay.Polyline;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -89,10 +90,14 @@ public class RecorderService extends Service implements SensorEventListener, Loc
 
     private long lastAccUpdate = 0;
     private long lastGPSUpdate = 0;
+    private long lastGyroUpdate = 0;
     private SensorManager sensorManager = null;
     private PowerManager.WakeLock wakeLock = null;
     private IBinder mBinder = new MyBinder();
     private StringBuilder accGpsString = new StringBuilder();
+
+    private static final float NS2S = 1.0f / 1000000000.0f;
+
 
     public String getPathToAccGpsFile() {
         return pathToAccGpsFile;
@@ -145,7 +150,18 @@ public class RecorderService extends Service implements SensorEventListener, Loc
             }
         }
         if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
-            gyroscopeMatrix = event.values;
+            float deltaT = (event.timestamp - lastGyroUpdate) * NS2S;
+
+
+            // Integrate angle rotation over time
+            if(lastGyroUpdate != 0){
+                gyroscopeMatrix[0] += event.values[0] * deltaT;
+                gyroscopeMatrix[1] += event.values[1] * deltaT;
+                gyroscopeMatrix[2] += event.values[2] * deltaT;
+            }
+
+
+            lastGyroUpdate = event.timestamp;
 
         }
     }
@@ -451,6 +467,8 @@ public class RecorderService extends Service implements SensorEventListener, Loc
                     gyro =  String.valueOf(gyroscopeMatrix[0]) + "," +
                             String.valueOf(gyroscopeMatrix[1]) + "," +
                             String.valueOf(gyroscopeMatrix[2]);
+
+                    Arrays.fill(gyroscopeMatrix, 0f);
                 }
 
                 // The queues are of sufficient size, let's compute the averages.
